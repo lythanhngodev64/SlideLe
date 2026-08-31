@@ -17,7 +17,7 @@ dotnet run --project src\SlideLe\SlideLe.csproj
 2. Theo mặc định, ứng dụng chỉ quét các tệp `.pptx` ngay trong thư mục của URL. Chọn **Slide khác** nếu muốn quét thêm các thư mục con.
 3. Nhấn **Quét tài liệu**.
 4. Gõ vào ô **Tìm kiếm** để lọc theo tên, đường dẫn hoặc dung lượng của slide.
-5. Chọn **Tải về** ở tệp PowerPoint cần lưu, rồi chọn nơi lưu trên máy.
+5. Chọn **Tải về** để chọn nơi lưu trên máy, hoặc **Mở ngay** để tải tạm và mở bằng ứng dụng PowerPoint mặc định của Windows.
 
 URL phải là liên kết thư mục GitHub công khai theo dạng:
 
