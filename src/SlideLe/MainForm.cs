@@ -23,6 +23,7 @@ internal sealed class MainForm : Form
     private readonly DataGridView _presentationsGrid = new();
     private readonly Label _scopeHintLabel = new();
     private readonly Label _statusLabel = new();
+    private readonly LoadingOverlay _scanLoadingOverlay = new();
     private int _hoveredActionRowIndex = -1;
     private PresentationAction _hoveredAction = PresentationAction.None;
     private bool _searchFilterQueued;
@@ -48,6 +49,7 @@ internal sealed class MainForm : Form
         _sourceUrl = AppSettingsStore.LoadSourceUrl(DefaultSourceUrl);
 
         BuildUserInterface();
+        Shown += MainForm_Shown;
         AcceptButton = _scanButton;
     }
 
@@ -358,8 +360,16 @@ internal sealed class MainForm : Form
     private void HelpButton_Click(object? sender, EventArgs e)
     {
         MessageBox.Show(this,
-            "Nhấn “Thiết lập” để chọn URL thư mục GitHub, nhấn “Quét tài liệu”, rồi chọn “Tải về” để lưu slide hoặc “Mở ngay” để mở bằng ứng dụng PowerPoint mặc định.",
-            "Hướng dẫn Slide Lễ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            "Kính chào quý Cha, quý Tu sĩ và toàn thể cộng đoàn.\n\n" +
+            "Slide Lễ giúp cộng đoàn chuẩn bị bài trình chiếu cho Thánh Lễ, giờ cầu nguyện và các sinh hoạt của giáo xứ.\n\n" +
+            "Hướng dẫn sử dụng:\n" +
+            "1. Nhấn “Quét tài liệu” để xem danh sách slide. Ứng dụng sẽ kiểm tra kết nối Internet trước khi quét.\n" +
+            "2. Nhập từ cần tìm vào ô “Tìm kiếm” để lọc theo tên, đường dẫn hoặc dung lượng tệp.\n" +
+            "3. Chọn “Slide khác” nếu muốn tìm cả các slide trong thư mục con.\n" +
+            "4. Chọn “Tải về” để lưu slide vào máy; chọn “Mở ngay” để mở bằng chương trình trình chiếu mặc định của Windows.\n\n" +
+            "Muốn đổi kho slide, xin nhấn “Thiết lập”, dán liên kết thư mục GitHub rồi nhấn “Lưu”. Sau đó, nhấn “Quét tài liệu” để cập nhật danh sách.\n\n" +
+            "Nguyện xin Chúa chúc lành cho công việc phục vụ của quý vị.",
+            "Hướng dẫn sử dụng Slide Lễ", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private void SettingsButton_Click(object? sender, EventArgs e)
@@ -495,6 +505,12 @@ internal sealed class MainForm : Form
         await ScanAsync();
     }
 
+    private async void MainForm_Shown(object? sender, EventArgs e)
+    {
+        Shown -= MainForm_Shown;
+        //await ScanAsync();
+    }
+
     private void SearchTextBox_KeyDown(object? sender, KeyEventArgs e)
     {
         if (e.KeyCode == Keys.Enter)
@@ -541,18 +557,19 @@ internal sealed class MainForm : Form
     {
         bool includeSubdirectories = _includeSubdirectoriesCheckBox.Checked;
         SetBusy(true);
+        SetScanProgress("Đang kiểm tra kết nối Internet...");
+        _scanLoadingOverlay.ShowLoading(this, "Đang kiểm tra kết nối Internet...");
 
         try
         {
-            _statusLabel.Text = "Đang kiểm tra kết nối Internet...";
             if (!await EnsureInternetConnectionAsync())
             {
                 return;
             }
 
-            _statusLabel.Text = includeSubdirectories
+            SetScanProgress(includeSubdirectories
                 ? "Đang quét danh sách tệp .pptx, bao gồm thư mục con..."
-                : "Đang quét danh sách tệp .pptx trong thư mục hiện tại...";
+                : "Đang quét danh sách tệp .pptx trong thư mục hiện tại...");
             IReadOnlyList<PresentationFile> files = await _gitHubFolderClient.GetPptxFilesAsync(
                 _sourceUrl,
                 includeSubdirectories,
@@ -565,13 +582,20 @@ internal sealed class MainForm : Form
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            _statusLabel.Text = "Không thể quét danh sách tệp.";
+            SetScanProgress("Không thể quét danh sách tệp.");
             ShowError("Không thể quét tài liệu", exception.Message);
         }
         finally
         {
+            _scanLoadingOverlay.HideLoading();
             SetBusy(false);
         }
+    }
+
+    private void SetScanProgress(string message)
+    {
+        _statusLabel.Text = message;
+        _scanLoadingOverlay.UpdateMessage(message);
     }
 
     private async Task<bool> EnsureInternetConnectionAsync()
@@ -581,7 +605,7 @@ internal sealed class MainForm : Form
             return true;
         }
 
-        _statusLabel.Text = "Không thể kết nối Internet.";
+        SetScanProgress("Không thể kết nối Internet.");
         MessageBox.Show(this,
             "Không thể kết nối Internet. Vui lòng kiểm tra mạng rồi thử lại.",
             "Không có kết nối Internet",
@@ -811,6 +835,16 @@ internal sealed class MainForm : Form
         _includeSubdirectoriesCheckBox.Enabled = !isBusy;
         _searchTextBox.ReadOnly = isBusy;
         _presentationsGrid.Enabled = !isBusy;
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _scanLoadingOverlay.Dispose();
+        }
+
+        base.Dispose(disposing);
     }
 
     private static string GetSafeFileName(string name)
